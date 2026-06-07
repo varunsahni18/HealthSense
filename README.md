@@ -8,6 +8,18 @@
 
 ---
 
+## Demo
+
+<p align="center">
+  <img src="images/HealthSense.png" alt="HealthSense dashboard — live biosignal waveforms and PanLUNA inference heads" width="780"/>
+</p>
+
+<p align="center">
+  <img src="images/HealthSense-AFib.png" alt="HealthSense AFib detection — cardiac head firing with 78% severity" width="780"/>
+</p>
+
+---
+
 ## Quick start (60 seconds)
 
 ```powershell

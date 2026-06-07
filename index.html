@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HealthSense — Biosignal Monitor Demo</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap');
+    * { box-sizing: border-box; }
+    body { font-family: 'Inter', sans-serif; background: #070B14; color: #E5E7EB; margin: 0; }
+    .mono { font-family: 'JetBrains Mono', monospace; }
+    .card { background: rgba(17,24,39,0.9); border: 1px solid rgba(55,65,81,0.5); border-radius: 16px; }
+    button { cursor: pointer; transition: all 0.2s; }
+    .status-ok { background: rgba(16,185,129,0.15); border: 1px solid rgba(16,185,129,0.4); color: #6EE7B7; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 700; }
+    .status-warn { background: rgba(245,158,11,0.15); border: 1px solid rgba(245,158,11,0.4); color: #FCD34D; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 700; }
+    .status-alert { background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.4); color: #FCA5A5; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 700; }
+  </style>
+</head>
+<body>
+  <div class="max-w-6xl mx-auto px-4 py-6">
+    <div class="text-center mb-6">
+      <div class="text-4xl mb-2">❤️</div>
+      <h1 class="text-3xl font-black text-white mb-1">HealthSense</h1>
+      <p class="text-emerald-300 font-semibold">On-Device Multimodal Health Foundation Model — PanLUNA</p>
+      <p class="text-gray-500 text-sm mt-1">Simulated biosignal monitoring · All inference on-device (wearable simulation) · 0 bytes to cloud</p>
+    </div>
+
+    <!-- Subject selector -->
+    <div class="card p-4 mb-6">
+      <div class="flex items-center gap-4 flex-wrap">
+        <span class="text-gray-400 text-sm font-semibold">Simulate Patient Profile:</span>
+        <button onclick="loadProfile('healthy')" id="btn-healthy" class="px-4 py-2 rounded-lg text-sm font-semibold border border-emerald-700 text-emerald-400 hover:bg-emerald-950/30">Healthy Adult</button>
+        <button onclick="loadProfile('afib')" id="btn-afib" class="px-4 py-2 rounded-lg text-sm font-semibold border border-red-800 text-red-400 hover:bg-red-950/30">AFib Risk</button>
+        <button onclick="loadProfile('sleep')" id="btn-sleep" class="px-4 py-2 rounded-lg text-sm font-semibold border border-purple-800 text-purple-400 hover:bg-purple-950/30">Sleep Study</button>
+        <button onclick="loadProfile('stress')" id="btn-stress" class="px-4 py-2 rounded-lg text-sm font-semibold border border-amber-800 text-amber-400 hover:bg-amber-950/30">High Stress</button>
+        <div class="ml-auto flex items-center gap-2">
+          <div id="inference-dot" class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
+          <span class="text-emerald-400 text-xs mono">On-device inference active</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-6">
+      <!-- Signal charts -->
+      <div class="lg:col-span-3 space-y-3">
+        <div class="card p-3">
+          <div class="flex justify-between items-center mb-1">
+            <span class="text-xs font-bold text-emerald-400">ECG — LEAD II</span>
+            <span class="text-xs mono text-emerald-400" id="hr-display">72 BPM</span>
+          </div>
+          <canvas id="ecgChart" height="60"></canvas>
+        </div>
+        <div class="card p-3">
+          <div class="flex justify-between items-center mb-1">
+            <span class="text-xs font-bold text-cyan-400">PPG — SpO₂</span>
+            <span class="text-xs mono text-cyan-400" id="spo2-display">98% SpO₂</span>
+          </div>
+          <canvas id="ppgChart" height="55"></canvas>
+        </div>
+        <div class="card p-3">
+          <div class="flex justify-between items-center mb-1">
+            <span class="text-xs font-bold text-purple-400">EEG — FRONTAL (Fz)</span>
+            <span class="text-xs mono text-purple-400" id="eeg-display">ALPHA 10Hz</span>
+          </div>
+          <canvas id="eegChart" height="55"></canvas>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div class="card p-3">
+            <div class="flex justify-between items-center mb-1">
+              <span class="text-xs font-bold text-amber-400">EMG — FOREARM</span>
+              <span class="text-xs mono text-amber-400" id="emg-display">Low activity</span>
+            </div>
+            <canvas id="emgChart" height="50"></canvas>
+          </div>
+          <div class="card p-3">
+            <div class="flex justify-between items-center mb-1">
+              <span class="text-xs font-bold text-blue-400">IMU — ACCEL</span>
+              <span class="text-xs mono text-blue-400" id="imu-display">Stationary</span>
+            </div>
+            <canvas id="imuChart" height="50"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Classifications -->
+      <div class="space-y-3">
+        <div class="card p-4">
+          <div class="text-sm text-white font-bold mb-3">PanLUNA Output</div>
+          <div class="space-y-2">
+            <div class="flex justify-between items-center">
+              <span class="text-xs text-gray-400">Cardiac Rhythm</span>
+              <span id="cls-cardiac" class="status-ok">Normal Sinus</span>
+            </div>
+            <div class="flex justify-between items-center">
+              <span class="text-xs text-gray-400">Sleep Stage</span>
+              <span id="cls-sleep" class="status-ok">Awake</span>
+            </div>
+            <div class="flex justify-between items-center">
+              <span class="text-xs text-gray-400">Stress Level</span>
+              <span id="cls-stress" class="status-ok">Low</span>
+            </div>
+            <div class="flex justify-between items-center">
+              <span class="text-xs text-gray-400">AFib Risk</span>
+              <span id="cls-afib" class="status-ok">Normal</span>
+            </div>
+            <div class="flex justify-between items-center">
+              <span class="text-xs text-gray-400">Stroke Risk</span>
+              <span id="cls-stroke" class="status-ok">Low</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card p-4">
+          <div class="text-sm text-white font-bold mb-2">On-Device Adaptation</div>
+          <div class="text-xs text-gray-500 mb-2">BioTrain (arXiv:2604.13359)</div>
+          <div class="space-y-2 text-xs">
+            <div>
+              <div class="flex justify-between text-gray-500 mb-1"><span>Personalization gain</span><span class="text-emerald-400">+35%</span></div>
+              <div class="h-1.5 bg-gray-800 rounded"><div class="h-full bg-emerald-500 rounded" style="width:35%"></div></div>
+            </div>
+            <div class="flex justify-between"><span class="text-gray-500">RAM used</span><span class="text-blue-400">0.67 MB</span></div>
+            <div class="flex justify-between"><span class="text-gray-500">Power budget</span><span class="text-purple-400">&lt;50 mW</span></div>
+            <div class="flex justify-between"><span class="text-gray-500">Throughput</span><span class="text-cyan-400">17 samples/s</span></div>
+          </div>
+        </div>
+
+        <div class="card p-4">
+          <div class="text-sm text-white font-bold mb-2">Model Specs</div>
+          <div class="space-y-1 text-xs text-gray-500">
+            <div class="flex justify-between"><span>Parameters</span><span class="text-gray-300">5.4M</span></div>
+            <div class="flex justify-between"><span>EEG accuracy</span><span class="text-gray-300">81.21%</span></div>
+            <div class="flex justify-between"><span>Sleep accuracy</span><span class="text-gray-300">74.16%</span></div>
+            <div class="flex justify-between"><span>ECG latency</span><span class="text-gray-300">325ms</span></div>
+            <div class="flex justify-between"><span>Energy/ECG</span><span class="text-gray-300">18.8 mJ</span></div>
+            <div class="flex justify-between"><span>Cloud data</span><span class="text-emerald-400 font-bold">0 bytes</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Profile definitions
+    const profiles = {
+      healthy: {
+        label: 'Healthy Adult', hr: 72, spo2: 98,
+        cardiac: ['Normal Sinus','ok'], sleep: ['Awake','ok'], stress: ['Low','ok'],
+        afib: ['Normal','ok'], stroke: ['Low Risk','ok'],
+        eegFreq: 10, eegAmplitude: 0.3, ecgPace: 0.5
+      },
+      afib: {
+        label: 'AFib Pattern', hr: 88,  spo2: 97,
+        cardiac: ['Irregular!','alert'], sleep: ['Awake','ok'], stress: ['Moderate','warn'],
+        afib: ['High Risk!','alert'], stroke: ['Elevated','warn'],
+        eegFreq: 8, eegAmplitude: 0.4, ecgPace: 0.3
+      },
+      sleep: {
+        label: 'Sleep Study', hr: 58, spo2: 96,
+        cardiac: ['Normal Sinus','ok'], sleep: ['Stage 2 NREM','ok'], stress: ['Low','ok'],
+        afib: ['Normal','ok'], stroke: ['Low Risk','ok'],
+        eegFreq: 14, eegAmplitude: 0.6, ecgPace: 0.4
+      },
+      stress: {
+        label: 'High Stress', hr: 102, spo2: 97,
+        cardiac: ['Tachycardia','warn'], sleep: ['Awake','ok'], stress: ['High!','alert'],
+        afib: ['Monitor','warn'], stroke: ['Elevated','warn'],
+        eegFreq: 25, eegAmplitude: 0.2, ecgPace: 0.7
+      },
+    };
+
+    let currentProfile = profiles.healthy;
+    let tick = 0;
+
+    function loadProfile(name) {
+      currentProfile = profiles[name];
+      updateClassifications();
+      document.getElementById('hr-display').textContent = currentProfile.hr + ' BPM';
+      document.getElementById('spo2-display').textContent = currentProfile.spo2 + '% SpO₂';
+    }
+
+    function updateClassifications() {
+      const p = currentProfile;
+      const setStatus = (id, [text, type]) => {
+        const el = document.getElementById(id);
+        el.textContent = text;
+        el.className = type === 'ok' ? 'status-ok' : type === 'warn' ? 'status-warn' : 'status-alert';
+      };
+      setStatus('cls-cardiac', p.cardiac);
+      setStatus('cls-sleep', p.sleep);
+      setStatus('cls-stress', p.stress);
+      setStatus('cls-afib', p.afib);
+      setStatus('cls-stroke', p.stroke);
+    }
+
+    // Create biosignal charts
+    function mkChart(id, color, height=55) {
+      const ctx = document.getElementById(id)?.getContext('2d');
+      if (!ctx) return null;
+      const data = Array(80).fill(0);
+      return new Chart(ctx, {
+        type: 'line',
+        data: { labels: data.map((_,i)=>i), datasets: [{ data, borderColor: color, backgroundColor: color+'18', borderWidth: 1.5, pointRadius: 0, tension: 0.2, fill: true }] },
+        options: { plugins: { legend: { display: false } }, scales: { x: { display: false }, y: { display: false, min: -1.5, max: 1.5 } }, animation: { duration: 0 }, responsive: true, maintainAspectRatio: false }
+      });
+    }
+
+    const ecg = mkChart('ecgChart', '#10B981');
+    const ppg = mkChart('ppgChart', '#06B6D4');
+    const eeg = mkChart('eegChart', '#8B5CF6');
+    const emg = mkChart('emgChart', '#F59E0B');
+    const imu = mkChart('imuChart', '#3B82F6');
+
+    function push(chart, val) {
+      if (!chart) return;
+      chart.data.datasets[0].data.push(val);
+      chart.data.datasets[0].data.shift();
+      chart.update('none');
+    }
+
+    // Waveform generators
+    function ecgWave(t, pace, isAfib) {
+      const phase = (t * pace) % 1;
+      if (isAfib) {
+        if (Math.random() < 0.003) return 1.0; // irregular beat
+        return 0.05 + Math.sin(t * 0.8) * 0.08;
+      }
+      if (phase < 0.08) return 0.05;
+      if (phase < 0.12) return 0.6;
+      if (phase < 0.15) return -0.3;
+      if (phase < 0.20) return 1.0;
+      if (phase < 0.25) return 0.05;
+      if (phase < 0.45) return 0.1 + Math.sin(phase * 20) * 0.08;
+      return 0.05;
+    }
+
+    setInterval(() => {
+      tick++;
+      const p = currentProfile;
+      const isAfib = p.afib[1] === 'alert';
+
+      push(ecg, ecgWave(tick, p.ecgPace, isAfib));
+      push(ppg, 0.3 + Math.sin(tick / 8 * Math.PI * p.ecgPace * 2) * 0.65);
+      push(eeg, Math.sin(tick / (50 / p.eegFreq)) * p.eegAmplitude + Math.sin(tick / 3) * 0.15 + Math.random() * 0.1 - 0.05);
+      push(emg, p.stress[1] === 'alert' ? Math.abs(Math.random() * 0.6 + (tick % 20 < 3 ? 0.9 : 0)) * 0.5 : Math.abs(Math.random() * 0.15));
+      push(imu, Math.sin(tick / 15) * 0.2 + Math.random() * 0.05);
+    }, 50);
+
+    loadProfile('healthy');
+  </script>
+</body>
+</html>

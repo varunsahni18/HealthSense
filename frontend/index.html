@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>HealthSense — On-Wearable Multimodal Biosignal AI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/uplot@1.6.30/dist/uPlot.min.css">
+<link rel="stylesheet" href="css/healthsense.css">
+</head>
+<body>
+
+<header class="app-header">
+  <div class="brand">
+    <div class="brand-mark">HS</div>
+    <div>
+      <div class="brand-title">HealthSense</div>
+      <div class="brand-sub">On-Wearable Multimodal Biosignal AI · SparQ 2026 · Idea #02</div>
+    </div>
+  </div>
+  <div class="header-status">
+    <span id="net-pill" class="pill pill-ok">● Local-Only</span>
+    <span id="safety-pill" class="pill pill-mute">Safety pre-empt OFF</span>
+    <span id="conn-pill" class="pill pill-warn">SSE: connecting…</span>
+  </div>
+</header>
+
+<main class="app-main">
+
+  <!-- LEFT: scenario controls + vitals + alerts -->
+  <aside class="panel panel-controls">
+    <div class="panel-title">Scenario</div>
+    <div class="scenario-grid">
+      <button class="sc-btn active" data-sc="normal">😊 Normal<br><span>Sinus · Wake</span></button>
+      <button class="sc-btn"        data-sc="afib">💔 AFib<br><span>Irregular RR</span></button>
+      <button class="sc-btn"        data-sc="vt">⚠️ VT<br><span>Wide QRS @ 165</span></button>
+      <button class="sc-btn"        data-sc="stress">😰 Stress<br><span>High β / EMG</span></button>
+      <button class="sc-btn"        data-sc="drowsy">😴 Drowsy<br><span>θ-dominant</span></button>
+    </div>
+
+    <div class="panel-title">Vitals</div>
+    <div class="vitals-grid">
+      <div class="vital"><div class="vlbl">Heart rate</div><div class="vval"><span id="v-hr">--</span><small>bpm</small></div></div>
+      <div class="vital"><div class="vlbl">HRV (RMSSD)</div><div class="vval"><span id="v-hrv">--</span><small>ms</small></div></div>
+      <div class="vital"><div class="vlbl">SpO₂</div><div class="vval"><span id="v-spo2">--</span><small>%</small></div></div>
+      <div class="vital"><div class="vlbl">Resp rate</div><div class="vval"><span id="v-resp">--</span><small>/min</small></div></div>
+    </div>
+
+    <div class="panel-title">Personalisation <span id="biotrain-status" class="muted">idle</span></div>
+    <div class="biotrain-progress">
+      <div id="biotrain-bar"></div>
+    </div>
+    <div class="biotrain-buttons">
+      <button id="btn-baseline" class="primary">Capture 8s baseline</button>
+      <button id="btn-finetune" disabled>Run BioTrain</button>
+    </div>
+    <div class="biotrain-result" id="biotrain-result">
+      Stress F1: <b id="f1-before">0.78</b> → <b id="f1-after">—</b>
+    </div>
+
+    <div class="panel-title">Cloud</div>
+    <div class="cloud-controls">
+      <label class="opt-in"><input type="checkbox" id="opt-in"> Opt-in clinician summary</label>
+      <button id="btn-clinician">Send metadata to cloud</button>
+    </div>
+    <div class="cloud-result" id="cloud-result">No cloud calls yet.</div>
+  </aside>
+
+  <!-- CENTER: waveforms + classification -->
+  <section class="panel panel-charts">
+    <div class="charts-header">
+      <div>
+        <div class="panel-title nomargin">Live biosignals</div>
+        <div class="muted">5 modalities · stream from on-device buffer · 0 bytes to cloud</div>
+      </div>
+      <div class="perf-badges">
+        <div class="perf-badge"><div class="lbl">model</div><div class="val" style="font-size:11px"><span id="badge-model">ONNX 1D-CNN</span></div></div>
+        <div class="perf-badge"><div class="lbl">latency</div><div class="val"><span id="badge-lat">—</span> ms</div></div>
+        <div class="perf-badge"><div class="lbl">energy</div><div class="val"><span id="badge-mj">—</span> mJ</div></div>
+        <div class="perf-badge"><div class="lbl">inferences</div><div class="val"><span id="badge-n">0</span></div></div>
+      </div>
+    </div>
+    <div id="chart-ecg"  class="chart-row"></div>
+    <div id="chart-ppg"  class="chart-row"></div>
+    <div id="chart-eeg"  class="chart-row"></div>
+    <div id="chart-emg"  class="chart-row"></div>
+    <div id="chart-imu"  class="chart-row"></div>
+  </section>
+
+  <!-- RIGHT: classification heads + alerts + privacy inspector -->
+  <aside class="panel panel-results">
+    <div class="panel-title">PanLUNA heads</div>
+    <div class="head card-cardiac">
+      <div class="hlbl">Cardiac arrhythmia</div>
+      <div class="hval" id="h-cardiac">Sinus rhythm</div>
+      <div class="hconf"><span id="h-cardiac-conf">94%</span></div>
+      <div class="hbar"><div id="h-cardiac-bar"></div></div>
+    </div>
+    <div class="head card-sleep">
+      <div class="hlbl">Sleep stage</div>
+      <div class="hval" id="h-sleep">Wake</div>
+      <div class="hconf"><span id="h-sleep-conf">92%</span></div>
+    </div>
+    <div class="head card-stress">
+      <div class="hlbl">Stress level</div>
+      <div class="hval" id="h-stress">low</div>
+      <div class="hbar"><div id="h-stress-bar"></div></div>
+    </div>
+    <div class="head card-eeg">
+      <div class="hlbl">EEG abnormality</div>
+      <div class="hval" id="h-eeg">Normal</div>
+      <div class="hconf"><span id="h-eeg-conf">94%</span></div>
+    </div>
+
+    <div class="panel-title">Alert narration <button id="btn-explain" class="link">re-explain</button></div>
+    <div class="explain-card" id="explain-card">All clear. Heart rhythm normal.</div>
+
+    <div class="panel-title">Privacy inspector
+      <span class="muted">tap to inspect</span>
+    </div>
+    <div class="egress-grid">
+      <div class="egress-cell">
+        <div class="ecount" id="e-local">0 B</div>
+        <div class="elbl">Local (buffer + UI)</div>
+      </div>
+      <div class="egress-cell egress-cloud">
+        <div class="ecount" id="e-cloud">0 B</div>
+        <div class="elbl">Cloud (opt-in only)</div>
+      </div>
+      <div class="egress-cell egress-raw">
+        <div class="ecount" id="e-raw">0 B</div>
+        <div class="elbl">Raw biosignal egress</div>
+      </div>
+    </div>
+    <button id="btn-export" class="ghost">Export session JSON</button>
+  </aside>
+</main>
+
+<footer class="app-footer">
+  <div>arXiv:2604.04297 · arXiv:2604.13359 · Track: Edge + Cloud AI by Industry — Healthcare</div>
+  <div>Reuses CabinAI ZeroClaw bus · Backend on :<span id="port-display">5000</span></div>
+</footer>
+
+<div id="alert-banner" class="alert-banner"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/uplot@1.6.30/dist/uPlot.iife.min.js"></script>
+<script src="js/charts.js"></script>
+<script src="js/sse.js"></script>
+<script src="js/privacy.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>

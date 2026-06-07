@@ -1,0 +1,14 @@
+.venv312/
+__pycache__/
+*.pyc
+.env
+models/*.onnx
+models/*.bin
+*.onnx.data
+ai-hub-apps/
+ai-hub-models/
+sparq-hackathon-2026/
+AI Suite Documentation.pdf
+submissions/
+docs/*.docx
+pdfs/
